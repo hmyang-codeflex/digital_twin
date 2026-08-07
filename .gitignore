@@ -1,0 +1,25 @@
+# 저장소 범위: Assets/Scripts (Unity 자체 개발 C#)와 tools/robot-importer
+# (Electron/React 앱)만 포함. 그 외 전부 제외하는 화이트리스트 방식.
+
+/*
+!/Assets/
+/Assets/*
+!/Assets/Scripts/
+
+!/tools/
+/tools/*
+!/tools/robot-importer/
+
+!/.gitignore
+!/README.md
+!/CLAUDE.md
+
+# ── tools/robot-importer 내부 제외 항목 ──────────────────
+tools/robot-importer/node_modules/
+tools/robot-importer/dist/
+tools/robot-importer/dist-electron/
+
+# ── OS / 임시 파일 ────────────────────────────────────────
+.DS_Store
+Thumbs.db
+*.tmp

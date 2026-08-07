@@ -1,0 +1,35 @@
+{
+  "name": "robot-importer",
+  "version": "1.0.0",
+  "description": "Flangemaster Robot Import Tool",
+  "main": "electron/main.js",
+  "scripts": {
+    "postinstall": "node scripts/copy-draco.js",
+    "dev": "concurrently \"vite --port 5175\" \"wait-on http://localhost:5175 && node scripts/start-electron.js\"",
+    "build": "node scripts/copy-draco.js && vite build && electron-builder",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "three": "^0.168.0",
+    "urdf-loader": "^0.12.4",
+    "lucide-react": "^0.462.0",
+    "recharts": "^2.13.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.3.0",
+    "concurrently": "^9.0.0",
+    "electron": "^33.0.0",
+    "electron-builder": "^25.0.0",
+    "vite": "^6.0.0",
+    "wait-on": "^8.0.0"
+  },
+  "build": {
+    "appId": "com.flangemaster.robot-importer",
+    "productName": "Robot Importer",
+    "directories": { "output": "dist-electron" },
+    "files": ["dist/**/*", "electron/**/*"],
+    "win": { "target": "nsis" }
+  }
+}

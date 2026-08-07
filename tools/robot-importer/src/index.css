@@ -1,0 +1,237 @@
+/* ── Notion-inspired Design System ─────────────────────────── */
+:root {
+  /* Page backgrounds — warm off-white like Notion */
+  --bg-base:    #f7f6f3;
+  --bg-panel:   #ffffff;
+  --bg-card:    #fafaf9;
+  --bg-hover:   #f1f0ee;
+  --bg-subtle:  #eae9e4;
+
+  /* Borders — very light, warm */
+  --border:        #e9e8e4;
+  --border-strong: #d3d1cb;
+  --border-focus:  #37352f;
+
+  /* Accent — Notion dark (monochrome) */
+  --accent:       #37352f;
+  --accent-hover: #2d2b26;
+  --accent-dim:   #f1f0ee;
+  --accent-text:  #6b6966;
+  --accent-glow:  rgba(55, 53, 47, 0.06);
+
+  /* Text — Notion's warm near-blacks */
+  --text:       #37352f;
+  --text-sub:   #57534e;
+  --text-muted: #78746f;
+  --text-faint: #aba9a3;
+
+  /* Status */
+  --success:      #0a8a67;
+  --success-dim:  #e5f5f0;
+  --warning:      #b56e0a;
+  --warning-dim:  #fef5e4;
+  --error:        #cc3340;
+  --error-dim:    #fdf0f1;
+
+  /* Shadows — minimal, Notion uses very flat design */
+  --shadow-xs: 0 1px 2px rgba(15, 15, 15, 0.05);
+  --shadow-sm: 0 1px 3px rgba(15, 15, 15, 0.08), 0 1px 2px rgba(15, 15, 15, 0.04);
+  --shadow-md: 0 4px 12px rgba(15, 15, 15, 0.10), 0 2px 4px rgba(15, 15, 15, 0.04);
+  --shadow-lg: 0 8px 24px rgba(15, 15, 15, 0.12), 0 4px 8px rgba(15, 15, 15, 0.05);
+
+  /* Radii — Notion uses smaller, subtler radii */
+  --radius-xs: 3px;
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+}
+
+/* ── Reset ───────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: 'Pretendard', 'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif;
+  background: var(--bg-base);
+  color: var(--text);
+  height: 100vh;
+  overflow: hidden;
+  user-select: none;
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+#root { height: 100vh; display: flex; flex-direction: column; }
+
+/* ── Scrollbar ───────────────────────────────────────────────── */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 99px; }
+::-webkit-scrollbar-thumb:hover { background: var(--text-faint); }
+
+/* ── Form controls ───────────────────────────────────────────── */
+input, select, textarea {
+  background: var(--bg-panel);
+  border: 1px solid var(--border-strong);
+  color: var(--text);
+  border-radius: var(--radius-sm);
+  padding: 0 10px;
+  height: 36px;
+  font-size: 14px;
+  outline: none;
+  width: 100%;
+  transition: border-color 0.12s, box-shadow 0.12s;
+  font-family: inherit;
+}
+textarea { height: auto; padding: 8px 10px; }
+input:focus, select:focus, textarea:focus {
+  border-color: var(--border-focus);
+  box-shadow: 0 0 0 2px var(--accent-glow);
+}
+input::placeholder { color: var(--text-faint); }
+select { appearance: none; cursor: pointer; }
+input[type="range"] {
+  padding: 0; height: auto; border: none; background: transparent;
+  box-shadow: none; cursor: pointer;
+  accent-color: var(--accent);
+}
+input[type="number"] { text-align: right; }
+input:disabled, select:disabled { opacity: 0.45; cursor: not-allowed; }
+
+/* ── Buttons ─────────────────────────────────────────────────── */
+button {
+  cursor: pointer;
+  border: none;
+  border-radius: var(--radius-sm);
+  font-size: 14px;
+  font-weight: 500;
+  font-family: inherit;
+  transition: background 0.12s, box-shadow 0.12s, transform 0.1s, opacity 0.12s;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+  height: 36px;
+  padding: 0 14px;
+}
+button:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.btn-primary {
+  background: var(--accent);
+  color: #fff;
+  font-weight: 600;
+  padding: 0 16px;
+  box-shadow: 0 1px 3px rgba(15, 15, 15, 0.15);
+}
+.btn-primary:hover:not(:disabled) {
+  background: var(--accent-hover);
+  box-shadow: 0 2px 8px rgba(15, 15, 15, 0.20);
+  transform: translateY(-1px);
+}
+.btn-primary:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.btn-ghost {
+  background: var(--bg-panel);
+  color: var(--text-sub);
+  border: 1px solid var(--border-strong);
+  padding: 0 12px;
+}
+.btn-ghost:hover:not(:disabled) {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+
+.btn-success {
+  background: var(--success);
+  color: #fff;
+  font-weight: 600;
+  padding: 0 16px;
+}
+.btn-success:hover:not(:disabled) {
+  background: #088a5c;
+  transform: translateY(-1px);
+}
+
+.btn-danger {
+  background: var(--error-dim);
+  color: var(--error);
+  border: 1px solid #f5b8bb;
+  padding: 0 12px;
+}
+.btn-danger:hover:not(:disabled) {
+  background: #fce0e2;
+}
+
+/* ── Typography ──────────────────────────────────────────────── */
+.label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--text-sub);
+  margin-bottom: 6px;
+  display: block;
+}
+
+.section-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text);
+  letter-spacing: -0.01em;
+}
+
+.section-desc {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin-top: 4px;
+  line-height: 1.6;
+}
+
+/* ── Cards ───────────────────────────────────────────────────── */
+.card {
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+}
+
+/* ── Badges ──────────────────────────────────────────────────── */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+}
+.badge-staged   { background: var(--bg-hover); color: var(--text-sub); }
+.badge-pending  { background: var(--warning-dim); color: var(--warning); }
+.badge-deployed { background: var(--success-dim); color: var(--success); }
+.badge-failed   { background: var(--error-dim);   color: var(--error); }
+
+/* ── Divider ─────────────────────────────────────────────────── */
+.divider { height: 1px; background: var(--border); margin: 16px 0; }
+
+/* ── Panel header ────────────────────────────────────────────── */
+.panel-header {
+  padding: 0 24px;
+  height: 48px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-panel);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+/* ── Animations ──────────────────────────────────────────────── */
+@keyframes spin  { to { transform: rotate(360deg); } }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+@keyframes pulse  { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+
+.animate-spin   { animation: spin 0.8s linear infinite; }
+.animate-fadeIn { animation: fadeIn 0.18s ease both; }
+.animate-pulse  { animation: pulse 1.4s ease-in-out infinite; }
