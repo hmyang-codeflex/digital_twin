@@ -4,6 +4,12 @@ using UnityEngine;
 using UnityEngine.Networking;
 
 /// <summary>
+/// ⚠ 실험적 컴포넌트 — GS 인증 등 "확실히 동작함"을 전제로 하는 용도로 사용하지 마세요.
+/// AiInspector와 마찬가지로 torque_server(외부 Flask 프로세스, Roboflow API 의존)가 응답하지
+/// 않으면 판정 자체가 성립하지 않고(InvalidateResult로 항상 검사 실패 처리), 서버 미기동 시
+/// 무작위 판정이 나올 수 있습니다. 클래스 자체가 "시뮬레이션용 2단계"로 설계된 실험적 기능입니다.
+/// 프로덕션/인증 대상 검사에는 HoleBoltInspector(물리 콜라이더 기반, 자립적)를 사용하세요.
+///
 /// 지정한 카메라로 검사 지점을 렌더타겟에 캡처해 PNG로 만든 뒤 torque_server(/api/detect)에
 /// 자동 전송하고, 응답으로 온 판정 결과를 그대로 사용하는 검사기 (시뮬레이션용 2단계).
 ///
@@ -41,6 +47,14 @@ public class SceneCaptureInspector : MonoBehaviour, IBoltInspector
 
     private int _consumedSeq = -1;
     private Camera ResolveCamera() => CaptureCamera != null ? CaptureCamera : Camera.main;
+
+    private void OnEnable()
+    {
+        Debug.LogWarning(
+            $"[SceneCaptureInspector] '{gameObject.name}'에서 활성화됨 — 이 검사기는 외부 서버" +
+            "(torque_server)에 의존하는 실험적 컴포넌트입니다. 서버가 꺼져있거나 API 키가 없으면 " +
+            "판정이 무작위로 나올 수 있습니다. 확실한 판정이 필요하면 HoleBoltInspector를 사용하세요.", this);
+    }
 
     /// <summary>
     /// 지금 카메라 화면을 캡처해 서버로 전송하고 응답을 기다립니다.

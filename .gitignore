@@ -11,6 +11,7 @@
 !/tools/robot-importer/
 
 !/.gitignore
+!/.gitattributes
 !/README.md
 !/CLAUDE.md
 

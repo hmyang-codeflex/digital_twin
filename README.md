@@ -1,205 +1,67 @@
-# Flangemaster DB Export
+# Flangemaster
 
-Unity 디지털 트윈(Flangemaster)에서 내보낸 데이터 패키지입니다.
-`DigitalTwinEmitter.cs`가 1Hz로 브로드캐스트한 로봇 상태·컨베이어·그리퍼·파츠·볼트 검사 데이터를 MySQL 호환 형식으로 저장합니다.
+Unity 디지털 트윈 + 로봇 임포터(Electron/React) 두 개의 제품으로 구성된 산업 로봇 시뮬레이션 프로젝트입니다.
 
----
+## 제품 구성
 
-## 파일 목록
+| 제품 | 위치 | 설명 |
+| --- | --- | --- |
+| **디지털 트윈** | `Assets/Scripts/` | Unity 빌드. 로봇 태스크 실행, 볼트 검사·자동 재시도, 트윈 데이터 발행, 게임 화면 내 런타임 설정 편집 UI. |
+| **로봇 임포터** | `tools/robot-importer/` | Electron/React 앱. 로봇·워크파츠 임포트, 실시간 모니터링, 데이터 분석, 세션 리포트, 노코드 태스크 시퀀스 빌더. |
 
-| 파일                    | 설명                                                         |
-| ----------------------- | ------------------------------------------------------------ |
-| `schema.sql`          | DB 생성 + 테이블 DDL.**가장 먼저 실행**                |
-| `sessions.csv`        | 세션 메타데이터 (시작·종료 시각, 프레임 수)                 |
-| `robot_frames.csv`    | 로봇별 1Hz 상태 (관절각, TCP, 베이스 포즈, 온도, 전력, 토크) |
-| `conveyor_frames.csv` | 컨베이어별 1Hz 상태 (속도, 전류)                             |
-| `gripper_frames.csv`  | 그리퍼별 1Hz 상태 (파지 여부, 파지력, 열림량)                |
-| `gripper_events.csv`  | 그리퍼 grip/release 전환 이벤트                              |
-| `parts.csv`           | 워크파츠별 1Hz 위치 및 파지 상태                             |
-| `sensor_frames.csv`   | 볼트 홀 검사 센서 1Hz 결과                                   |
+두 제품은 파일 스테이징 폴더와 HTTP 통신으로 연동되지만 독립적으로 실행 가능한 별도 프로그램입니다.
 
 ---
 
-## 임포트 순서
+## 디지털 트윈 — 핵심 구조
 
-1. `schema.sql` 실행 → `flangemaster` DB 및 7개 테이블 생성
-2. `LOAD DATA LOCAL INFILE`은 MySQL 서버·클라이언트 양쪽에서 기본적으로 비활성화되어 있습니다. 임포트 전에 활성화하세요.
+- `RobotTask`(추상) → `Program()` 오버라이드로 태스크 정의, Instruction 리스트를 코루틴 실행
+- `Instruction`(추상) → `PTP` / `LIN` / `CIRC` / `VerifyRetryInstruction` 등
+- `HoleBoltInspector.IsBoltPresent()` → Physics 기반 볼트 검사 (자립적, 외부 서비스 의존 없음)
+- `DigitalTwinEmitter` → 로봇/컨베이어/그리퍼/파츠 상태를 1Hz로 HTTP 발행
+- `RobotSelectionUI` + `RuntimeFieldEditor` → 게임 화면에서 오브젝트를 클릭해 태스크 설정(재시도 횟수, 작업 위치 Target 등)을 직접 편집
 
-```sql
--- 서버에서 최초 1회 (관리자 권한):
-SET GLOBAL local_infile = 1;
-```
+### 코드 규칙
 
-```
-# mysql CLI로 접속할 때 --local-infile=1 옵션 필요:
-mysql --local-infile=1 -u <user> -p flangemaster
-```
-
-3. 아래 순서대로 임포트 (sessions → 나머지)
-
-```sql
-LOAD DATA LOCAL INFILE 'sessions.csv'
-  INTO TABLE sessions
-  FIELDS TERMINATED BY ',' OPTIONALLY ENCLOSED BY '"'
-  LINES TERMINATED BY '\n'
-  IGNORE 1 ROWS;
-
--- 나머지 CSV도 동일한 패턴으로 테이블명만 바꿔서 임포트
-```
-
-pandas 사용 시:
-
-```python
-import pandas as pd
-
-robot_frames    = pd.read_csv('robot_frames.csv')
-conveyor_frames = pd.read_csv('conveyor_frames.csv')
-gripper_frames  = pd.read_csv('gripper_frames.csv')
-gripper_events  = pd.read_csv('gripper_events.csv')
-parts           = pd.read_csv('parts.csv')
-sensor_frames   = pd.read_csv('sensor_frames.csv')
-
-# ts_ms → datetime 변환
-robot_frames['dt'] = pd.to_datetime(robot_frames['ts_ms'], unit='ms', utc=True)
-```
+- 새 태스크는 `RobotTask` 상속 후 `Program()` 오버라이드
+- `RobotTask` / `Instruction` 베이스 수정 금지 — 새 `Instruction` 서브클래스로 확장
+- Preliy.Flange API 사용: `Controller`, `Target`, `Solver`, `Gripper`, `Part`
 
 ---
 
-## 스키마 설명
+## 로봇 임포터 — 핵심 구조
 
-### sessions
-
-| 컬럼        | 타입     | 설명                                     |
-| ----------- | -------- | ---------------------------------------- |
-| id          | INT PK   | 세션 식별자 (단일 내보내기에서는 항상 1) |
-| started_at  | DATETIME | 첫 프레임 타임스탬프 (UTC)               |
-| ended_at    | DATETIME | 마지막 프레임 타임스탬프                 |
-| frame_count | INT      | 전체 스냅샷 수                           |
-| note        | TEXT     | 자유 메모                                |
-
-### robot_frames
-
-1Hz 샘플링. 로봇이 N대이면 프레임당 N행 생성됩니다.
-
-| 컬럼          | 타입    | 설명                                                             |
-| ------------- | ------- | ---------------------------------------------------------------- |
-| session_id    | INT     | sessions.id 참조                                                 |
-| ts_ms         | BIGINT  | Unix 타임스탬프 (밀리초)                                         |
-| instance_id   | INT     | Unity GetInstanceID() — 씬 실행 중 유일 키                      |
-| robot_name    | VARCHAR | Unity 씬 GameObject 이름                                         |
-| model_type    | VARCHAR | 로봇 모델 타입                                                   |
-| status        | VARCHAR | `Run` \| `Idle`                                              |
-| instr_type    | VARCHAR | 현재 인스트럭션 타입 (`PTP`, `LIN`, `WaitInstruction` 등)  |
-| instr_idx     | INT     | Program() 내 인스트럭션 인덱스 (0-based)                         |
-| speed_factor  | FLOAT   | 속도 배율 (0–1)                                                 |
-| j1–j6        | FLOAT   | 관절각 (°)                                                      |
-| tcp_x/y/z     | FLOAT   | TCP 위치 (m, Unity 월드 좌표)                                    |
-| tcp_rx/ry/rz  | FLOAT   | TCP 자세 (오일러각, °)                                          |
-| base_x/y/z    | FLOAT   | 로봇 베이스 월드 위치 (m)                                        |
-| base_qx/y/z/w | FLOAT   | 로봇 베이스 회전 쿼터니언                                        |
-| temperature_c | FLOAT   | 가상 관절 온도 (°C). Run +0.06/s, Idle −0.03/s, 범위 25–85°C |
-| power_w       | FLOAT   | 가상 소비전력 (W). Run 800–2400W, Idle 120–200W                |
-| torque_nm     | FLOAT   | 가상 대표 토크 (Nm). Run 속도 비례 5–120Nm, Idle 0              |
-
-### conveyor_frames
-
-1Hz 샘플링. 컨베이어가 M대이면 프레임당 M행 생성됩니다.
-
-| 컬럼          | 타입       | 설명                                     |
-| ------------- | ---------- | ---------------------------------------- |
-| session_id    | INT        | sessions.id 참조                         |
-| ts_ms         | BIGINT     | Unix 타임스탬프 (밀리초)                 |
-| conveyor_name | VARCHAR    | 컨베이어 GameObject 이름                 |
-| running       | TINYINT(1) | `1` = 동작 중 / `0` = 정지           |
-| speed_ms      | FLOAT      | 벨트 속도 (m/s), 2% 가우시안 노이즈 포함 |
-| direction     | VARCHAR    | 이동 방향 축                             |
-| friction      | FLOAT      | 표면 마찰 계수                           |
-| current_a     | FLOAT      | 가상 모터 전류 (A). 속도 비례 0.8–8.5A  |
-
-### gripper_frames
-
-1Hz 상태 스냅샷. 그리퍼가 K개이면 프레임당 K행 생성됩니다.
-
-| 컬럼         | 타입       | 설명                                                                                  |
-| ------------ | ---------- | ------------------------------------------------------------------------------------- |
-| session_id   | INT        | sessions.id 참조                                                                      |
-| ts_ms        | BIGINT     | Unix 타임스탬프 (밀리초)                                                              |
-| gripper_name | VARCHAR    | 그리퍼 GameObject 이름                                                                |
-| robot_name   | VARCHAR    | 소속 로봇 이름 (계층상 부모 RobotTask 우선, 없으면 거리 기준 최근접 RobotTask로 폴백) |
-| is_gripping  | TINYINT(1) | `1` = 파지 중 / `0` = 해제                                                        |
-| gripped_part | VARCHAR    | 파지 중인 파트 이름 (없으면 빈 값)                                                    |
-| grip_amount  | FLOAT      | 손가락 열림/닫힘 정도 (0=완전 열림, 1=완전 닫힘)                                      |
-| grip_state   | VARCHAR    | `Fixed` \| `Opening` \| `Closing`                                               |
-| grip_force   | FLOAT      | 가상 파지력 (N). 파지 시 8–30N, 해제 시 0                                            |
-
-### gripper_events
-
-grip/release 전환 시점만 기록 (이벤트 기반, 1Hz 아님).
-`robot_frames`와 `ts_ms`로 조인하면 그립 직전 로봇 자세·온도·전력을 추출할 수 있습니다.
-
-| 컬럼         | 타입    | 설명                            |
-| ------------ | ------- | ------------------------------- |
-| session_id   | INT     | sessions.id 참조                |
-| ts_ms        | BIGINT  | 이벤트 발생 타임스탬프          |
-| gripper_name | VARCHAR | 그리퍼 GameObject 이름          |
-| robot_name   | VARCHAR | 소속 로봇 이름                  |
-| event_type   | VARCHAR | `grip` \| `release`         |
-| part_name    | VARCHAR | 파지된 파트 이름 (없으면 빈 값) |
-
-### parts
-
-1Hz 워크파츠 위치 스냅샷.
-
-| 컬럼       | 타입       | 설명                                 |
-| ---------- | ---------- | ------------------------------------ |
-| session_id | INT        | sessions.id 참조                     |
-| ts_ms      | BIGINT     | Unix 타임스탬프 (밀리초)             |
-| part_name  | VARCHAR    | 파츠 GameObject 이름                 |
-| is_gripped | TINYINT(1) | `1` = 파지 중 / `0` = 자유       |
-| gripped_by | VARCHAR    | 파지 중인 그리퍼 이름 (없으면 빈 값) |
-| pos_x/y/z  | FLOAT      | 파츠 위치 (m, Unity 월드 좌표)       |
-
-### sensor_frames
-
-`HoleBoltInspector`의 1Hz 평가 결과.
-
-| 컬럼         | 타입       | 설명                                               |
-| ------------ | ---------- | -------------------------------------------------- |
-| session_id   | INT        | sessions.id 참조                                   |
-| ts_ms        | BIGINT     | 스냅샷 타임스탬프                                  |
-| sensor_name  | VARCHAR    | 홀 이름 (`hole`, `hole(1)`~`hole(4)`)        |
-| bolt_present | TINYINT(1) | `1` = 볼트 감지 / `0` = 미감지                 |
-| confidence   | FLOAT      | 감지 신뢰도 (0–1). 현재 Physics 기반 시뮬레이션값 |
+- `main.js`(Electron) → 스테이징 폴더 관리, 배포/롤백 IPC, 트윈 데이터 수신 HTTP 서버
+- `MonitorPanel` → 실시간 트윈 데이터 시각화, 오브젝트 선택 필터
+- `LogPanel` / `ReportPanel` → 사이클타임·스텝별 통계·재시도 이력 분석 및 리포트
+- `SequenceBuilderPanel` → 코드 없이 로봇 동작 시퀀스(JSON) 구성
+- `teachingExport.js` → RAPID/KRL/JBI/KAS 로봇 티칭 코드 및 PLC JSON 추출
 
 ---
 
-## 가상 물리량 생성 방식
+## GS 인증 참고 — 기능별 검증 상태
 
-토크·온도·전력·전류는 실제 센서 없이 Unity C# 수식으로 생성한 시뮬레이션 값입니다.
+인증 신청 시 아래 구분을 참고하세요. "조건부"로 표시된 기능은 사람의 수동 개입이나 특정 전제조건이 있어 자동/독립 동작을 보장하지 않습니다.
 
-| 값            | 생성 방식                                                                    |
-| ------------- | ---------------------------------------------------------------------------- |
-| temperature_c | 이전 값에서 Run +0.06°C/s, Idle −0.03°C/s 누적, 25–85°C 클램프          |
-| power_w       | 속도 배율로 목표값(Run 800–2400W / Idle 120–200W) 향해 Lerp, σ=12W 노이즈 |
-| torque_nm     | 속도 배율 선형 매핑 5–120Nm, σ=3Nm 노이즈, Idle 시 0                       |
-| current_a     | 벨트 속도 비례 0.8–8.5A, σ=0.1A 노이즈                                     |
-| grip_force    | 파지 시 grip_amount 기반 8–30N, σ=1.2N 노이즈                              |
+### 확실히 동작 (자립적, 외부 서비스 비의존)
+- 로봇 모션 오케스트레이션 코어 (RobotTask, PTP, LIN, CIRC)
+- 볼트 검사 (HoleBoltInspector — 물리 콜라이더 기반)
+- 볼트 검사 + 자동 재시도 (BoltingInspectionTask, VerifyRetryInstruction) — 단, 아래 IBoltInspector 구성에 한함
+- 디지털 트윈 데이터 발행/모니터링/데이터 분석/세션 리포트/재시도 이력 추적 (Electron 쪽)
+- 게임 화면 내 런타임 태스크 설정 편집 (RuntimeFieldEditor)
+
+### 조건부 — 문서에 전제조건 명시 필요
+- **로봇/워크파츠 임포트→배포**: URDF 자동 임포트 후 DH 파라미터 등 일부 값은 사람이 수동 보정해야 합니다.
+- **노코드 시퀀스 빌더**: 타겟 이름을 문자열로 정확히 입력해야 하며, 오타 시 실패합니다.
+- **로봇 티칭 코드 추출**: 텍스트 변환기로서 완성돼 있으나, 실제 로봇 컨트롤러(가와사키/KUKA/ABB/야스카와)에서의 실기 문법 검증은 이뤄지지 않았습니다.
+- **RobotSelectionUI**: realvirtual 애셋(OutlineSelectionManager 등)에 일부 의존하므로, 씬에 해당 컴포넌트가 없으면 하이라이트 기능이 비활성화됩니다.
+
+### 제외 권장 — GS 인증 신청 범위에 포함하지 마세요
+- **AiInspector, SceneCaptureInspector**: 외부 AI 서비스(torque_server, Roboflow API)에 의존합니다. 서버가 꺼져 있거나 API 키가 없으면 **무작위(random) 판정**을 반환하므로 "확실히 동작"이라는 인증 기준에 부합하지 않습니다. `BoltingInspectionTask`의 Inspector 슬롯에는 반드시 `HoleBoltInspector`만 연결한 구성으로 인증을 진행하세요.
+- **VisionHud**: 실제 판정 로직이 아니라 판정 결과를 시각적으로 "그럴듯하게" 보여주는 연출 전용 UI입니다.
 
 ---
 
-## 데이터 품질 노트
+## 대용량 파일 안내
 
-**grip+release 동시 발생**
-같은 `ts_ms`에 동일 그리퍼의 `grip`과 `release`가 함께 나타날 수 있습니다.
-1Hz 샘플링 윈도우 안에서 두 전환이 모두 발생한 경우의 아티팩트입니다.
-
-**동명 로봇 중복 행**
-씬에 이름이 동일한 `RobotTask`가 여러 개 있으면 `robot_frames`에서 같은 `ts_ms + robot_name` 조합이 여러 행 생성됩니다.
-`instance_id`로 구분
-
-**gripper_frames에는 instance_id가 없음**
-`robot_frames`와 달리 `gripper_frames`는 `instance_id` 컬럼이 없습니다. 씬에 이름이 같은 `Gripper` 컴포넌트가 여러 개 있으면(예: 동명 로봇에 각각 붙은 그리퍼) CSV만으로는 구분이 불가능하며, `gripper_name` 기준 집계 시 중복 합산될 수 있습니다. 
-
-**confidence 값**
-현재 Physics 기반 시뮬레이션값(볼트 감지 시 0.85–0.99)입니다.
-실제 비전 모델로 교체 시 값 분포가 달라집니다.
+`tools/robot-importer/public/models/`의 `.fbx` 모델 중 일부는 GitHub 권장 용량(50MB)을 초과합니다. 앞으로 추가되는 대용량 애셋(`.fbx`, `.glb`, `.gltf`, `.wasm`, `.psd`)은 `.gitattributes`를 통해 Git LFS로 관리되도록 설정돼 있습니다. 단, 이미 커밋된 기존 파일은 이 설정만으로 자동 전환되지 않으며, 필요 시 `git lfs migrate`로 별도 히스토리 재작성이 필요합니다.

@@ -395,7 +395,8 @@ public class RobotSelectionUI : MonoBehaviour
 
             y = RuntimeFieldEditor.DrawFields(
                 _taskDetailRoot.transform, bolting, y,
-                _font, _accentColor, new Color(0.85f, 0.86f, 0.9f));
+                _font, _accentColor, new Color(0.85f, 0.86f, 0.9f),
+                onListChanged: () => RebuildTaskDetailSection(task));
 
             y -= 6f;
             var hint = new GameObject("Hint", typeof(RectTransform));

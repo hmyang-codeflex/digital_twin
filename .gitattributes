@@ -1,0 +1,8 @@
+# 앞으로 추가/변경되는 대용량 3D 모델·바이너리 애셋은 Git LFS로 관리합니다.
+# 주의: 이미 일반 커밋으로 올라간 기존 파일(예: tools/robot-importer/public/models/*.fbx)은
+# 이 설정만으로는 자동 전환되지 않습니다 — 히스토리 재작성(git lfs migrate)이 별도로 필요합니다.
+*.fbx filter=lfs diff=lfs merge=lfs -text
+*.glb filter=lfs diff=lfs merge=lfs -text
+*.gltf filter=lfs diff=lfs merge=lfs -text
+*.wasm filter=lfs diff=lfs merge=lfs -text
+*.psd filter=lfs diff=lfs merge=lfs -text

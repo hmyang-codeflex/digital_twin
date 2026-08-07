@@ -4,6 +4,13 @@ using UnityEngine;
 using UnityEngine.Networking;
 
 /// <summary>
+/// ⚠ 실험적 컴포넌트 — GS 인증 등 "확실히 동작함"을 전제로 하는 용도로 사용하지 마세요.
+/// torque_server(외부 Flask 프로세스, Roboflow API 의존)가 꺼져 있거나 ROBOFLOW_API_KEY가
+/// 없으면, 서버가 random.choice(["ok","fail"])로 완전 무작위 판정을 내려보냅니다. 즉 이
+/// 컴포넌트의 판정 정확도는 별도 프로세스와 외부 서비스 키 설정에 전적으로 좌우되며,
+/// Unity/이 프로젝트 코드만으로는 결정론적 동작을 보장할 수 없습니다.
+/// 프로덕션/인증 대상 검사에는 HoleBoltInspector(물리 콜라이더 기반, 자립적)를 사용하세요.
+///
 /// torque_server(/api/latest-detect)를 폴링해 AI 모델의 볼트 판정 결과를 받아오는 검사기.
 /// HoleBoltInspector(물리 콜라이더 기반)와 동일한 IBoltInspector 인터페이스를 구현하므로,
 /// BoltingInspectionTask의 Inspector 슬롯에 이 컴포넌트를 대신 꽂으면 판정 소스만 AI로 교체됩니다.
@@ -43,7 +50,14 @@ public class AiInspector : MonoBehaviour, IBoltInspector
     private int _lastSeq = -1;
     private int _consumedSeq = -1; // 마지막으로 판정에 실제 사용(소비)한 seq
 
-    private void OnEnable() => StartCoroutine(PollLoop());
+    private void OnEnable()
+    {
+        Debug.LogWarning(
+            $"[AiInspector] '{gameObject.name}'에서 활성화됨 — 이 검사기는 외부 서버(torque_server)에 " +
+            "의존하는 실험적 컴포넌트입니다. 서버가 꺼져있거나 API 키가 없으면 판정이 무작위로 나올 수 " +
+            "있습니다. 확실한 판정이 필요하면 HoleBoltInspector를 사용하세요.", this);
+        StartCoroutine(PollLoop());
+    }
 
     private IEnumerator PollLoop()
     {
